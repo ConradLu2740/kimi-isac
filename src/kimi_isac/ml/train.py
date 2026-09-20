@@ -1,11 +1,10 @@
-"""Unified training loop: val-based selection, early stopping, LR scheduling,
-gradient clipping, logging, checkpoint metadata."""
+"""ML sensing-head training on the shared engine (val-based selection,
+early stopping, LR scheduling, gradient clipping, checkpoint metadata)."""
 
 from __future__ import annotations
 
 import argparse
 import logging
-import time
 from pathlib import Path
 
 import torch
@@ -13,7 +12,6 @@ from torch.utils.data import DataLoader
 
 from kimi_isac.core import logging_setup, splits
 from kimi_isac.core.rng import seed_all
-from kimi_isac.ml.checkpoint import save_checkpoint
 from kimi_isac.ml.dataset import SensingDataset
 from kimi_isac.ml.evaluate import (
     calibrate_thresholds,
@@ -23,6 +21,7 @@ from kimi_isac.ml.evaluate import (
 )
 from kimi_isac.ml.model import SensingNet
 from kimi_isac.ml.scenario import ScenarioConfig
+from kimi_isac.training.engine import EngineHooks, run_training
 
 
 def build_loaders(split: dict, seed: int, cfg: ScenarioConfig, batch_size: int):
@@ -51,6 +50,12 @@ def loss_fn(
     return det + reg + cls
 
 
+def _make_opt(model: torch.nn.Module, lr: float, patience: int):
+    opt = torch.optim.Adam(model.parameters(), lr=lr)
+    sched = torch.optim.lr_scheduler.ReduceLROnPlateau(opt, patience=max(1, patience // 2))
+    return opt, sched
+
+
 def train_one(
     seed: int,
     cfg: ScenarioConfig,
@@ -65,9 +70,6 @@ def train_one(
     log: logging.Logger,
 ) -> tuple[dict[str, float], dict[str, float]]:
     train_loader, val_loader, test_loader, ood_loader = build_loaders(split, seed, cfg, batch_size)
-    model = SensingNet().to(device)
-    opt = torch.optim.Adam(model.parameters(), lr=lr)
-    sched = torch.optim.lr_scheduler.ReduceLROnPlateau(opt, patience=max(1, patience // 2))
     config = {
         "seed": seed,
         "epochs": epochs,
@@ -76,12 +78,9 @@ def train_one(
         "split_hash": split["config_hash"],
         "n_train": len(split["train"]),
     }
-    best_val = float("inf")
-    best_epoch = -1
-    bad_epochs = 0
-    for epoch in range(epochs):
+
+    def _train_epoch(model, opt, _loader) -> float:
         model.train()
-        t0 = time.time()
         tot = 0.0
         for batch in train_loader:
             maps = batch["map"].to(device)
@@ -92,32 +91,20 @@ def train_one(
             torch.nn.utils.clip_grad_norm_(model.parameters(), max_norm=1.0)
             opt.step()
             tot += float(loss.item())
-        val_loss = _val_loss(model, val_loader, cfg, device)
-        sched.step(val_loss)
-        if val_loss < best_val - 1e-5:
-            best_val, best_epoch, bad_epochs = val_loss, epoch, 0
-            save_checkpoint(
-                out_dir / "best.pth",
-                model,
-                epoch=epoch,
-                config=config,
-                metrics={"val_loss": val_loss},
-                optimizer=opt,
-            )
-        else:
-            bad_epochs += 1
-        log.info(
-            "epoch %3d/%d train_loss=%.4f val_loss=%.4f lr=%.2e (%.1fs)",
-            epoch + 1,
-            epochs,
-            tot / max(1, len(train_loader)),
-            val_loss,
-            opt.param_groups[0]["lr"],
-            time.time() - t0,
-        )
-        if bad_epochs >= patience:
-            log.info("early stopping at epoch %d (best epoch %d)", epoch + 1, best_epoch + 1)
-            break
+        return tot / max(1, len(train_loader))
+
+    hooks = EngineHooks(
+        build_model=SensingNet,
+        make_optimizer=lambda m: _make_opt(m, lr, patience),
+        train_epoch=_train_epoch,
+        val_loss=lambda m, _loader: _val_loss(m, val_loader, cfg, device),
+        config=config,
+        out_dir=out_dir,
+        device=device,
+        clip_norm=1.0,
+    )
+    run_training(hooks, epochs=epochs, patience=patience, log=log)
+    model = SensingNet().to(device)
     from kimi_isac.ml.checkpoint import load_checkpoint
 
     load_checkpoint(out_dir / "best.pth", model)
