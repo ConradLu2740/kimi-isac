@@ -1,0 +1,19 @@
+cff-version: 1.2.0
+title: "kimi-isac: Physics-Grounded, Statistically Honest ISAC Simulation"
+message: "If you use this software, please cite it as below."
+type: software
+authors:
+  - name: "kimi-isac contributors"
+license: MIT
+repository-code: "https://github.com/your-org/kimi-isac"
+keywords:
+  - isac
+  - ris
+  - reconfigurable-intelligent-surface
+  - leo
+  - sgp4
+  - ofdm
+  - diffusion-model
+  - 6g
+version: 0.1.0
+date-released: "2026-09-20"

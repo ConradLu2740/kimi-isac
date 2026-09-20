@@ -1,5 +1,9 @@
 # kimi-isac
 
+[![CI](https://github.com/your-org/kimi-isac/actions/workflows/ci.yml/badge.svg)](https://github.com/your-org/kimi-isac/actions/workflows/ci.yml)
+[![Python](https://img.shields.io/badge/python-3.10+-blue.svg)](https://www.python.org/)
+[![License: MIT](https://img.shields.io/badge/License-MIT-green.svg)](LICENSE)
+
 Physics-grounded, statistically honest ISAC (Integrated Sensing and
 Communication) simulation: LEO links (SGP4), OFDM sensing, RIS phase
 control, and a sensing-communication closed loop — where every headline
@@ -13,6 +17,16 @@ results) and fixes the parts that undermined credibility (checkpoint
 selection on the test set, self-referential "physics verification",
 magic-constant link budgets, parallel reimplementations of the same
 physics, statistics without confidence intervals).
+
+**[TECH_REPORT.md](TECH_REPORT.md)** — the full technical report (system
+model, verification, results, negative findings).
+
+![RIS closed loop over an ISS overpass](docs/demos/closedloop.gif)
+
+Interactive demos (open the HTML files directly, no server needed):
+[closed-loop player](docs/demos/closedloop_demo.html) ·
+[reconstruction viewer](docs/demos/gen_reconstruction.html) — regenerate
+with `python -m kimi_isac.viz`.
 
 ## Quick start
 
@@ -98,6 +112,8 @@ against values computed *outside* this repository.
 
 ### ML head vs classical baseline (10 seeds, bootstrap 95% CI)
 
+![ML vs classical](docs/figures/fig_ml_vs_classical.png)
+
 `python -m kimi_isac.ml.report --seeds 10` writes `results/ml_report.json`.
 
 | Metric (test, in-distribution) | Classical | ML head |
@@ -120,6 +136,8 @@ detector stays at 0.953±0.038 detection and 2.7 m RMSE.
 > OOD set that runs by default — not a claim that the ML head wins.
 
 ### Closed loop: RIS phase control over an ISS overpass
+
+![Closed-loop SNR per frame](docs/figures/fig_closedloop.png)
 
 Scenario: real SGP4 ISS pass over Beijing, 30 GHz, 60 dB blockage on the
 direct path (the canonical RIS use case — a two-hop RIS path cannot beat
@@ -159,6 +177,8 @@ cross-attention) → Chamfer distance with bootstrap 95% CIs over ≥10 seeds.
 cross-range information about the cloud (single-station bistatic
 geometry), so the reconstruction's cross-range content comes from the
 learned class prior. This is stated as a finding, not hidden.
+
+![Conditional CD vs prior](docs/figures/fig_gen_cd.png)
 
 **Measured results** (`python -m kimi_isac.gen.report --seeds 10`, 10 seeds,
 bootstrap 95% CI, stratified evaluation grid — every (SNR, RIS mode, class)
@@ -224,3 +244,18 @@ cell holds 16 samples):
 smoke. New physics claims must enter `verify/` as external-truth checks;
 new performance claims must be reported through `core/stats.py` with
 bootstrap CIs.
+
+## Citation
+
+```bibtex
+@misc{kimiisac2026,
+  title  = {kimi-isac: Physics-Grounded, Statistically Honest ISAC Simulation},
+  author = {kimi-isac contributors},
+  year   = {2026},
+  note   = {https://github.com/your-org/kimi-isac}
+}
+```
+
+## License
+
+[MIT](LICENSE) © 2026 kimi-isac contributors
