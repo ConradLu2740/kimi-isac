@@ -79,3 +79,30 @@ def test_oracle_upper_bound_and_none_mode():
     assert np.all(np.isfinite(out["Y_oracle"]))
     out_none = echo.echo_and_features(cloud, "building", "none", seed=0, snr=6.0, cfg=SMOKE_CFG)
     assert out_none["Y_oracle"] is None
+
+
+def test_single_scatterer_echo_matches_hand_computation():
+    # Pins the complex arithmetic: one scatterer at the ROI anchor, RIS off,
+    # huge SNR (noise negligible) -> Y must equal the analytic complex sum.
+    cfg = SMOKE_CFG
+    frames = echo.frame_geometry(cfg)
+    fr = frames[0]
+    ue, up = fr["ue"], fr["up"]
+    cloud = np.zeros((1, 3), dtype=float)  # single scatterer at the ROI anchor
+    p = scene.roi_anchor(ue, up)
+    d1 = float(np.linalg.norm(fr["sat_pos"] - p))
+    d2 = float(np.linalg.norm(p - ue))
+    rho = echo.REFLECTIVITY["building"]
+    lam = C_LIGHT / echo.FC_HZ
+    rate = float(np.dot(fr["sat_vel"], (fr["sat_pos"] - p) / d1))
+    f_d = -rate / lam
+    expected = (
+        rho
+        * (lam / (4.0 * np.pi * d1))
+        * (lam / (4.0 * np.pi * d2))
+        * np.exp(-1j * 2.0 * np.pi * (d1 + d2) / lam)
+        * np.exp(1j * 2.0 * np.pi * f_d * fr["t"])
+    )
+    out = echo.echo_and_features(cloud, "building", "none", seed=0, snr=1e12, cfg=cfg)
+    assert abs(out["Y"][0] - expected) < 1e-6 * abs(expected)
+    assert abs(out["Y"][0].imag) > 1e-3 * abs(out["Y"][0]), "echo lost its imaginary part"

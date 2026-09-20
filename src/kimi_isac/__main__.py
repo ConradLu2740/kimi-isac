@@ -15,6 +15,7 @@ def build_parser() -> argparse.ArgumentParser:
     sub = parser.add_subparsers(dest="command", required=True)
     sub.add_parser("verify", help="external-truth physics verification suite")
     sub.add_parser("closedloop", help="sensing-communication closed-loop demo")
+    sub.add_parser("gen", help="generative 3D reconstruction (VAE + latent DiT)")
     return parser
 
 
@@ -35,6 +36,10 @@ def main(argv: list[str] | None = None) -> int:
         from kimi_isac.closedloop import main as closedloop_main
 
         return closedloop_main()
+    if args.command == "gen":
+        from kimi_isac.gen import train as gen_train
+
+        return gen_train.main()
     log.error("unknown command %s", args.command)
     return 2
 

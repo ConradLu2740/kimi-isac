@@ -154,8 +154,10 @@ def echo_and_features(
         # f_D matches core.channel.doppler_shift_hz(rate, FC_HZ)
         f_d = -rate / lam
         doppler_phase = np.exp(1j * 2.0 * np.pi * f_d * fr["t"])
+        # direct path carries the free-space propagation phase exp(-j 2 pi d / lambda)
+        phase_direct = np.exp(-1j * 2.0 * np.pi * (d1 + d2) / lam)
         amp_direct = rho * _fs_amp(d1) * _fs_amp(d2)
-        Y_direct = float(np.sum(amp_direct * doppler_phase))
+        Y_direct = complex(np.sum(amp_direct * phase_direct * doppler_phase))
 
         Y_ris = 0.0 + 0.0j
         phases = None
@@ -167,12 +169,14 @@ def echo_and_features(
             chain = _elem_chain(fr, scat, d2, elem_gain_lin)  # (E, N)
             if ris_mode == "oracle":
                 # each scatterer's own element chain perfectly aligned
-                Y_ris = float(np.sum(np.abs(chain.sum(axis=0)) * doppler_phase))
+                Y_ris = complex(np.sum(np.abs(chain.sum(axis=0)) * doppler_phase))
                 Y_oracle[t] = Y_direct + Y_ris
             else:
                 if phases is None:
                     raise RuntimeError("phases must be set for aligned/random modes")
-                Y_ris = float(np.sum(chain * np.exp(1j * phases)[:, None] * doppler_phase[None, :]))
+                Y_ris = complex(
+                    np.sum(chain * np.exp(1j * phases)[:, None] * doppler_phase[None, :])
+                )
 
         Y[t] = Y_direct + Y_ris
         Y_ris_arr[t] = Y_ris
