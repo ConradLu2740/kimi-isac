@@ -296,7 +296,6 @@ def run_gen(
 
     # DiT stage on conditional samples (features + clouds) from the train split
     train_cond = ds.CondDataset(split["train"], cfg.seed, cfg, cache_dir=cache_dir)
-    val_cond = ds.CondDataset(split["val"], cfg.seed, cfg, cache_dir=cache_dir)
     data = _LatentCondData(train_cond, vae_model, device)
     n_classes = len(ds.templates.all_class_names())
     enc, model = _train_dit(
@@ -304,16 +303,13 @@ def run_gen(
     )
     sched_obj = dit.DDPMScheduler(T=T)
 
-    # unconditional CDs (class-conditional generation vs held-out instances)
+    # unconditional CDs (class-conditional generation vs stratified references)
     train_items = [
         ds.UncondDataset(split["train"], cfg.seed, cfg)[i]
         for i in range(min(N_EVAL_UNCOND, len(split["train"])))
     ]
-    heldout_items = [
-        heldout_loader.dataset[i] for i in range(min(N_EVAL_UNCOND, len(split["test"])))
-    ]
-    ood_ds = ds.UncondDataset(list(range(3000, 3060)), cfg.seed, cfg, ood=True)
-    ood_items = [ood_ds[i] for i in range(min(N_EVAL_UNCOND, len(ood_ds)))]
+    heldout_items = ds.make_uncond_eval_items(cfg, cfg.seed, ood=False, per_class=2)
+    ood_items = ds.make_uncond_eval_items(cfg, cfg.seed, ood=True, per_class=8)
     uncond_train = _sample_cds(
         vae_model,
         enc,
@@ -334,7 +330,7 @@ def run_gen(
         device,
         conditional=False,
         tau=cfg.tau,
-        n_eval=N_EVAL_UNCOND,
+        n_eval=len(heldout_items),
     )
     uncond_ood = _sample_cds(
         vae_model,
@@ -345,16 +341,16 @@ def run_gen(
         device,
         conditional=False,
         tau=cfg.tau,
-        n_eval=N_EVAL_UNCOND,
+        n_eval=len(ood_items),
     )
 
-    # conditional CDs on the val split, per (snr, ris_mode) cell
-    val_items = [val_cond[i] for i in range(len(val_cond))]
+    # conditional CDs on the stratified (snr, ris_mode, class) grid
+    cell_items = ds.make_cell_eval_items(cfg, cfg.seed, per_class=2, cache_dir=cache_dir)
     cond_cells: list[tuple[tuple[float, str], float]] = []
     aligned_cds: list[float] = []
     with torch.no_grad():
-        for start in range(0, len(val_items), 8):
-            batch = val_items[start : start + 8]
+        for start in range(0, len(cell_items), 8):
+            batch = cell_items[start : start + 8]
             cls = torch.tensor([it["class"] for it in batch], dtype=torch.long, device=device)
             feats = torch.stack([it["features"] for it in batch]).to(device)
             pooled, tokens = enc(cls, feats)

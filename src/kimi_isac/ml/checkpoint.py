@@ -1,7 +1,13 @@
-"""Checkpoint helper: every checkpoint stores its metadata, not just weights."""
+"""Checkpoint helper: every checkpoint stores its metadata, not just weights.
+
+Saves are atomic (temp file + os.replace) with retries: the workspace may
+live inside a synced folder (OneDrive) that transiently locks files.
+"""
 
 from __future__ import annotations
 
+import os
+import time
 from pathlib import Path
 from typing import Any
 
@@ -26,8 +32,17 @@ def save_checkpoint(
         "metrics": metrics,
         "optimizer": optimizer.state_dict() if optimizer is not None else None,
     }
-    torch.save(payload, path)
-    return path
+    tmp = path.with_suffix(path.suffix + ".tmp")
+    last_err: Exception | None = None
+    for attempt in range(5):
+        try:
+            torch.save(payload, tmp)
+            os.replace(tmp, path)
+            return path
+        except (RuntimeError, OSError) as err:  # transient sync locks
+            last_err = err
+            time.sleep(0.5 * (attempt + 1))
+    raise RuntimeError(f"could not save checkpoint {path}: {last_err}")
 
 
 def load_checkpoint(path: str | Path, model: torch.nn.Module) -> dict[str, Any]:

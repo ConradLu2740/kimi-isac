@@ -202,3 +202,92 @@ class OracleCondDataset(CondDataset):
             "snr": torch.tensor(snr),
             "ris_mode": "oracle",
         }
+
+
+CELL_EVAL_BASE = 4000
+
+
+def make_cell_eval_items(
+    cfg: GenConfig, seed: int, per_class: int = 2, cache_dir: str | Path | None = None
+) -> list[dict]:
+    """Stratified evaluation set: every (snr, ris_mode, class) combo appears
+    ``per_class`` times, so CD cells isolate the SNR/RIS effect from class mix."""
+    items: list[dict] = []
+    counter = 0
+    echo_cfg = echo.EchoConfig(n_elem=cfg.n_elem, tau=cfg.tau)
+    cache = Path(cache_dir) / cfg.config_hash() / "cells" if cache_dir is not None else None
+    for snr in cfg.snr_levels:
+        for mode in TRAIN_RIS_MODES:
+            for cls_name in templates.TRAIN_CLASSES:
+                for _ in range(per_class):
+                    idx = CELL_EVAL_BASE + counter
+                    counter += 1
+                    path = cache / f"s{seed}_{idx}.npz" if cache is not None else None
+                    if path is not None and path.exists():
+                        data = np.load(path)
+                        items.append(
+                            {
+                                "features": torch.from_numpy(
+                                    np.asarray(data["features"], dtype=np.float32)
+                                ),
+                                "cloud": torch.from_numpy(
+                                    np.asarray(data["cloud"], dtype=np.float32)
+                                ),
+                                "class": torch.tensor(int(data["cls"])),
+                                "snr": torch.tensor(float(data["snr"])),
+                                "ris_mode": str(data["ris_mode"]),
+                            }
+                        )
+                        continue
+                    rng = np.random.default_rng((seed * 1_000_003 + idx) % (2**63))
+                    cloud = templates.make_template(cls_name, rng)
+                    out = echo.echo_and_features(
+                        cloud, cls_name, mode, seed=idx, snr=float(snr), cfg=echo_cfg
+                    )
+                    features = out["features"].astype(np.float32)
+                    cls = templates.class_index(cls_name)
+                    if path is not None:
+                        path.parent.mkdir(parents=True, exist_ok=True)
+                        np.savez(
+                            path,
+                            features=features,
+                            cloud=cloud.astype(np.float32),
+                            cls=int(cls),
+                            snr=float(snr),
+                            ris_mode=mode,
+                        )
+                    items.append(
+                        {
+                            "features": torch.from_numpy(features),
+                            "cloud": torch.from_numpy(cloud.astype(np.float32)),
+                            "class": torch.tensor(cls),
+                            "snr": torch.tensor(float(snr)),
+                            "ris_mode": mode,
+                        }
+                    )
+    return items
+
+
+UNCOND_EVAL_BASE = 5000
+
+
+def make_uncond_eval_items(
+    cfg: GenConfig, seed: int, ood: bool = False, per_class: int = 2
+) -> list[dict]:
+    """Stratified unconditional evaluation references (cloud, class)."""
+    pool = templates.OOD_CLASSES if ood else templates.TRAIN_CLASSES
+    items: list[dict] = []
+    counter = 0
+    for cls_name in pool:
+        for _ in range(per_class):
+            idx = UNCOND_EVAL_BASE + counter
+            counter += 1
+            rng = np.random.default_rng((seed * 1_000_003 + idx) % (2**63))
+            cloud = templates.make_template(cls_name, rng)
+            items.append(
+                {
+                    "cloud": torch.from_numpy(cloud.astype(np.float32)),
+                    "class": torch.tensor(templates.class_index(cls_name)),
+                }
+            )
+    return items

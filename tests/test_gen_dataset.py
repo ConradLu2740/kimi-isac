@@ -65,3 +65,16 @@ def test_class_snr_not_aliased(tmp_path):
         snrs.setdefault(s, set()).add(c)
     assert all(len(v) >= 2 for v in classes.values()), f"class-SNR aliasing: {classes}"
     assert all(len(v) >= 4 for v in snrs.values()), f"SNR-class aliasing: {snrs}"
+
+
+def test_cell_eval_items_are_stratified(tmp_path):
+    # Every (snr, ris_mode, class) combo must appear equally: ablation cells
+    # must not be confounded by class mix.
+    cfg = ds.GenConfig(n_total=24, seed=42, snr_levels=(6.0, 1.0, 0.25), n_elem=8, tau=2)
+    items = ds.make_cell_eval_items(cfg, cfg.seed, per_class=2, cache_dir=tmp_path)
+    counts: dict[tuple[float, str, int], int] = {}
+    for it in items:
+        key = (round(float(it["snr"]), 2), it["ris_mode"], int(it["class"]))
+        counts[key] = counts.get(key, 0) + 1
+    assert len(counts) == 3 * 3 * 8
+    assert set(counts.values()) == {2}
