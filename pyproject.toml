@@ -1,0 +1,36 @@
+[build-system]
+requires = ["setuptools>=68"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "kimi-isac"
+version = "0.1.0"
+description = "Physics-grounded, statistically honest ISAC simulation: LEO links, RIS, sensing, closed loop"
+readme = "README.md"
+requires-python = ">=3.10"
+license = { text = "MIT" }
+dependencies = [
+    "numpy>=1.24",
+    "scipy>=1.10",
+    "sgp4>=2.20",
+    "matplotlib>=3.6",
+]
+
+[project.optional-dependencies]
+ml = ["torch>=2.0"]
+dev = ["pytest>=7", "ruff>=0.4", "mypy>=1.8"]
+
+[project.scripts]
+kimi-isac = "kimi_isac.__main__:main"
+
+[tool.setuptools.packages.find]
+where = ["src"]
+
+[tool.ruff]
+line-length = 100
+target-version = "py310"
+
+[tool.mypy]
+python_version = "3.10"
+ignore_missing_imports = true
+warn_unused_ignores = true
