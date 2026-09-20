@@ -43,7 +43,17 @@ src/kimi_isac/
 │   └── splits.py       # fixed train/val/test splits persisted as JSON
 ├── sensing/       # range-Doppler map, CA-CFAR (Pfa-calibrated), MUSIC, CRB
 ├── ml/            # optional torch layer: scenario, model, training, report
+├── gen/           # conditional diffusion 3D reconstruction
+│   ├── templates.py    # procedural point-cloud classes (8 train + 2 OOD)
+│   ├── scene.py        # ROI placement, local ENU frame
+│   ├── echo.py         # cloud -> per-frame complex echo + 10-dim features
+│   ├── vae.py          # PointVAE 512x3 -> z(256)
+│   ├── dit.py          # latent DiT denoiser + cross-attention conditioning
+│   ├── dataset.py      # fixed splits; unconditional + conditional views; .npz cache
+│   ├── train.py        # two-stage training on the shared engine
+│   └── report.py       # multi-seed CD report with SNR x RIS ablation
 ├── opt/           # RIS phase alignment (vectorized) + segmented reconfiguration
+├── training/      # shared training engine (val selection, early stop, checkpoints)
 └── closedloop.py  # sensing-communication closed loop over an ISS overpass
 ```
 
@@ -130,8 +140,32 @@ an unblocked LEO direct path by construction), 16 384-element panel
 > reconfiguration is the only working regime, which is itself a useful
 > negative result for RIS hardware design.
 
-## Negative results and limitations
+## v2: conditional diffusion 3D reconstruction (`gen/`)
 
+The generative subsystem reconstructs a 3-D point cloud of a ground ROI
+from the ISAC echo, with a class-conditional unconditional mode as the
+generation baseline.
+
+**Pipeline:** procedural templates (8 train classes + 2 OOD: bridge,
+windmill; 512 points each) → per-scatterer echo through `core/` physics
+over a real ISS overpass (sat→scatterer→UE direct path; RIS panel with
+phases aligned to the ROI centroid — what a real controller can do) →
+10-dim per-frame features → PointVAE (z=256) + latent DiT (depth 4,
+cross-attention) → Chamfer distance with bootstrap 95% CIs over ≥10 seeds.
+
+**Cross-range honesty:** the conditioning signal physically contains no
+cross-range information about the cloud (single-station bistatic
+geometry), so the reconstruction's cross-range content comes from the
+learned class prior. This is stated as a finding, not hidden.
+
+GEN_TABLE_PLACEHOLDER
+
+> **Honest finding #3:** the oracle row (per-scatterer ideal RIS
+> alignment — unreachable by any centroid-pointing controller) is the
+> upper bound; the gap between aligned and oracle quantifies what
+> centroid-pointing control costs on wide clouds.
+
+## Negative results and limitations
 - **Envelope detection is not ML**: matched-filter magnitude costs 2× in
   delay RMSE versus the coherent (real-part) estimator — measured here.
 - **Ground RIS vs LEO direct path**: with unblocked line-of-sight, the
@@ -146,14 +180,13 @@ an unblocked LEO direct path by construction), 16 384-element panel
 - **No fading in the closed loop**: channels are geometric/deterministic;
   Rician fading with time correlation is a v2 item.
 
-## Roadmap (v2 candidates)
+## Roadmap (v2.2+ candidates)
 
 - Rician/Loo channel models with frame-to-frame correlation; closed loop
   under fading
 - Multi-target and extended-target sensing scenarios
 - OTFS/AFDM waveforms for high Doppler
-- Conditional diffusion 3D reconstruction as a separate, optional module
-  (deliberately excluded from v1 so verification quality does not dilute)
+- Flow-matching generative baseline vs the current latent DDPM
 - GEO/MEO orbits; real SDR capture backend
 
 ## Contributing

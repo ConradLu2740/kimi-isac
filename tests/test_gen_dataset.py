@@ -48,3 +48,20 @@ def test_cond_dataset_cache_roundtrip(tmp_path):
 def test_oracle_dataset_mode(tmp_path):
     d = ds.OracleCondDataset(SMOKE.seed, SMOKE)
     assert d[0]["ris_mode"] == "oracle"
+
+
+def test_class_snr_not_aliased(tmp_path):
+    # Regression: the class draw and the SNR draw must not share an RNG stream
+    # (they once did, aliasing class<->SNR through the same random word).
+    cfg = ds.GenConfig(n_total=120, seed=42, snr_levels=(6.0, 1.0, 0.25), n_elem=8, tau=2)
+    d = ds.CondDataset(list(range(120)), 42, cfg)
+    classes: dict[int, set[float]] = {}
+    snrs: dict[float, set[int]] = {}
+    for i in range(len(d)):
+        it = d[i]
+        c = int(it["class"])
+        s = round(float(it["snr"]), 2)
+        classes.setdefault(c, set()).add(s)
+        snrs.setdefault(s, set()).add(c)
+    assert all(len(v) >= 2 for v in classes.values()), f"class-SNR aliasing: {classes}"
+    assert all(len(v) >= 4 for v in snrs.values()), f"SNR-class aliasing: {snrs}"

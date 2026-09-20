@@ -109,7 +109,11 @@ class CondDataset(Dataset):
 
     def __getitem__(self, i: int) -> dict:
         idx = self.indices[i]
-        rng = np.random.default_rng((self.seed * 1_000_003 + idx) % (2**63))
+        s = (self.seed * 1_000_003 + idx) % (2**63)
+        # decorrelated stream: the class draw inside _draw_sample uses default_rng(s);
+        # reusing the same seed here would alias class and SNR through the same
+        # underlying random word (observed as a spurious class<->SNR coupling).
+        rng = np.random.default_rng(s ^ 0x9E3779B9)
         path = self._cache_path(idx)
         if path is not None and path.exists():
             data = np.load(path)
@@ -161,7 +165,11 @@ class OracleCondDataset(CondDataset):
 
     def __getitem__(self, i: int) -> dict:
         idx = self.indices[i]
-        rng = np.random.default_rng((self.seed * 1_000_003 + idx) % (2**63))
+        s = (self.seed * 1_000_003 + idx) % (2**63)
+        # decorrelated stream: the class draw inside _draw_sample uses default_rng(s);
+        # reusing the same seed here would alias class and SNR through the same
+        # underlying random word (observed as a spurious class<->SNR coupling).
+        rng = np.random.default_rng(s ^ 0x9E3779B9)
         path = self._cache_path(idx)
         if path is not None and path.exists():
             data = np.load(path)
