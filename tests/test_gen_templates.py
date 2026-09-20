@@ -34,6 +34,17 @@ def test_distinct_classes_differ():
     assert not np.allclose(a, b)
 
 
+def test_intra_class_variance_is_real():
+    # Instances of one class must differ substantially (yaw + shape params),
+    # otherwise 'reconstruction' degenerates into class-template recall.
+    from kimi_isac.gen import metrics
+
+    for name in ("uav", "building", "vehicle"):
+        a = t.make_template(name, np.random.default_rng(1))
+        b = t.make_template(name, np.random.default_rng(2))
+        assert metrics.chamfer_distance(a, b) > 0.05, f"{name} instances too similar"
+
+
 def test_varied_instances_within_class():
     a = t.make_template("building", np.random.default_rng(10))
     b = t.make_template("building", np.random.default_rng(11))

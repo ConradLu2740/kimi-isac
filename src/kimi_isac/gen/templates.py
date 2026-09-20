@@ -144,7 +144,9 @@ def _b_uav(rng: np.random.Generator) -> np.ndarray:
             mid = tip / 2.0 + np.array([0.0, 0.0, -0.05])
             parts.append((_box_surface(rng, mid, np.array([arm, 0.06, 0.06]), 32), 1.0))
             parts.append((_box_surface(rng, tip, np.array([0.5, 0.5, 0.02]), 24), 1.0))
-    return _distribute(rng, parts)
+    pts = _distribute(rng, parts)
+    off = _ground_offset(rng, 2.0) + np.array([0.0, 0.0, rng.uniform(5.0, 30.0)])
+    return pts + off
 
 
 def _b_tank(rng: np.random.Generator) -> np.ndarray:
@@ -176,7 +178,9 @@ def _b_cubesat(rng: np.random.Generator) -> np.ndarray:
                 1.0,
             )
         )
-    return _distribute(rng, [(body, 2.0), *panels])
+    pts = _distribute(rng, [(body, 2.0), *panels])
+    off = _ground_offset(rng, 1.0) + np.array([0.0, 0.0, rng.uniform(40.0, 60.0)])
+    return pts + off
 
 
 def _b_bicycle(rng: np.random.Generator) -> np.ndarray:
@@ -189,7 +193,7 @@ def _b_bicycle(rng: np.random.Generator) -> np.ndarray:
     parts.append(
         (_box_surface(rng, np.array([-0.2, 0.0, 1.05]), np.array([0.25, 0.12, 0.05]), 20), 1.0)
     )
-    return _distribute(rng, parts)
+    return _distribute(rng, parts) + _ground_offset(rng, 1.0)
 
 
 def _b_pedestrian(rng: np.random.Generator) -> np.ndarray:
@@ -247,10 +251,19 @@ def _normalize(pts: np.ndarray) -> np.ndarray:
 
 
 def make_template(class_name: str, rng: np.random.Generator) -> np.ndarray:
-    """One parameterized instance of ``class_name`` as (N_POINTS, 3) in [-1,1]^3."""
+    """One parameterized instance of ``class_name`` as (N_POINTS, 3) in [-1,1]^3.
+
+    Instances vary in shape parameters, ROI position, and yaw orientation —
+    yaw matters: without it the class prior alone would nearly determine the
+    cloud and 'reconstruction' would degenerate into template recall.
+    """
     if class_name not in _BUILDERS:
         raise ValueError(f"unknown class {class_name!r}")
     pts = _BUILDERS[class_name](rng)
+    theta = rng.uniform(0.0, 2.0 * np.pi)
+    c, s = np.cos(theta), np.sin(theta)
+    rot = np.array([[c, -s, 0.0], [s, c, 0.0], [0.0, 0.0, 1.0]])
+    pts = pts @ rot.T
     if pts.shape != (N_POINTS, 3):
         raise RuntimeError(f"builder {class_name} produced {pts.shape}")
     return _normalize(pts)
