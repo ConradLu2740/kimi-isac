@@ -168,7 +168,7 @@ class OracleCondDataset(CondDataset):
             return {
                 "features": torch.from_numpy(np.asarray(data["features"], dtype=np.float32)),
                 "cloud": torch.from_numpy(np.asarray(data["cloud"], dtype=np.float32)),
-                "class": torch.tensor(int(data["class"])),
+                "class": torch.tensor(int(data["cls"])),
                 "snr": torch.tensor(float(data["snr"])),
                 "ris_mode": "oracle",
             }
