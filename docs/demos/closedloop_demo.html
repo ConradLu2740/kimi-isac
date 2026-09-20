@@ -1,0 +1,120 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>kimi-isac · RIS closed loop over an ISS overpass</title>
+<style>
+ body { font-family: system-ui, sans-serif; margin: 24px; background: #fafafa; }
+ .wrap { max-width: 980px; margin: 0 auto; }
+ canvas { background: #fff; border: 1px solid #ddd; border-radius: 6px; }
+ .row { display: flex; gap: 16px; flex-wrap: wrap; }
+ .controls { margin: 12px 0; display: flex; gap: 12px; align-items: center; }
+ input[type=range] { width: 420px; }
+ .readout { font-variant-numeric: tabular-nums; font-size: 14px; }
+ h1 { font-size: 20px; } h2 { font-size: 15px; margin: 8px 0 4px; }
+ .legend span { display: inline-block; margin-right: 14px; font-size: 13px; }
+ .sw { display: inline-block; width: 12px; height: 12px; border-radius: 2px; vertical-align: -1px; }
+</style>
+</head>
+<body>
+<div class="wrap">
+<h1>RIS closed loop over a real ISS overpass (30 GHz, 60 dB blockage, 16 384-element panel)</h1>
+<div class="controls">
+  <button id="play">&#9654; play</button>
+  <input id="slider" type="range" min="0" max="0" value="0" step="1">
+  <span class="readout" id="frameLabel"></span>
+</div>
+<div class="row">
+  <canvas id="geo" width="460" height="380"></canvas>
+  <canvas id="snr" width="460" height="380"></canvas>
+</div>
+<div class="legend" id="legend"></div>
+<div class="readout" id="metrics"></div>
+</div>
+<script>
+const DATA = {"meta":{"n_frames":24,"dt_s":0.5,"n_elem":16384,"blockage_db":60.0,"carrier_hz":30000000000.0},"variants":["direct_only","random","tracked","segmented_16","segmented_8","segmented_4"],"snr_db":{"direct_only":[-39.50290669615437,-43.6406755257007,-40.35122275640346,-38.289908614428555,-44.263996256772984,-49.81516322239138,-44.3307026271673,-44.4097633767413,-51.743491787114934,-39.709504591180966,-32.22277314739781,-32.38687806397711,-30.47416040361464,-26.664307504331383,-24.967332293593802,-25.665108234052813,-24.388444395982596,-25.98203533465383,-26.546694632052574,-27.18997931103467,-26.246761287445032,-25.546882363425965,-24.991506802567564,-26.14805378900865],"random":[-24.412369445289492,-33.79513858388864,-28.498525414866194,-25.762472954927425,-26.12239601632055,-26.395027823055646,-35.110843207267884,-24.628818018146546,-27.96502807086112,-28.289557679212905,-21.633456188673506,-27.122204214132765,-29.046187406764243,-33.04185177382911,-28.36925537646816,-33.11887344528024,-24.344929471323297,-32.041844982493075,-36.00021956234727,-28.812395242014514,-35.11024129406847,-36.12459426971423,-43.02827318189642,-29.13784326331807],"tracked":[13.27856366451758,13.308692660431223,13.336611299777736,13.362134643652864,13.391503949575318,13.405336326502722,13.433251237930362,13.473569491154239,13.518255821478736,13.520979749526274,13.578419626697865,13.585955625075762,13.608003104351225,13.66837588609182,13.675134443201314,13.697175930213675,13.738056431991554,13.783294486870847,13.80494839581478,13.832835131536957,13.875513754043638,13.874202759003392,13.919560469894943,13.946798771591592],"segmented_16":[13.27856366451758,13.308692660431223,-26.868019706782,13.362134643652864,13.391503949575318,-29.38772812837156,13.433251237930362,13.473569491154239,-21.94655034398435,13.520979749526274,13.578419626697865,-38.195149285622286,13.608003104351225,13.66837588609182,-26.034892435964277,13.697175930213675,13.738056431991554,-24.751088196529686,13.80494839581478,13.832835131536957,-34.391586451994364,13.874202759003392,13.919560469894943,-29.385958797651185],"segmented_8":[13.27856366451758,-52.55133033241397,-28.228367711724047,13.362134643652864,-23.63553212828064,-30.30419518775573,13.433251237930362,-27.45307763683983,-31.764103281688918,13.520979749526274,-30.150880978867242,-45.509561139999086,13.608003104351225,-22.417673227717042,-33.08040285308632,13.697175930213675,-28.339258075230514,-28.115908695525302,13.80494839581478,-30.574100172187748,-39.84824719267496,13.874202759003392,-24.079647878320436,-32.37636565544608],"segmented_4":[13.27856366451758,-52.55133033241397,-28.228367711724047,-35.80701943992077,-35.654167933254925,-38.10274212629329,13.433251237930362,-27.45307763683983,-31.764103281688918,-32.33732330325432,-34.732009183694984,-48.05451400787512,13.608003104351225,-22.417673227717042,-33.08040285308632,-41.72414788694524,-34.32433461176111,-37.0027528960661,13.80494839581478,-30.574100172187748,-39.84824719267496,-30.411162825478893,-39.944077646141295,-38.781605980422206]},"sat_xy_km":[[-583.5445450232729,-2.9676533990547718],[-580.3993348762549,-0.9126777028860311],[-577.2541595366071,1.1420671678546999],[-574.1085137415632,3.1969112438028664],[-570.9626515049927,5.251688518017966],[-567.8168269781087,7.306233009865324],[-564.6705347939311,9.360874717896653],[-561.5242822317767,11.41528233784906],[-558.3775638784592,13.469785847940136],[-555.2308870595334,15.524053964671015],[-552.0837463387454,17.578416646986728],[-548.9366490872198,19.63254263262282],[-545.7890898237497,21.686761859191627],[-542.6413226503254,23.74090836521827],[-539.4936018936066,25.794816223246084],[-536.3454218821245,27.84881532988018],[-533.1972901772157,29.902574483139237],[-530.0487011089665,31.956423560249576],[-526.9001623046978,34.010031383444904],[-523.7511679616019,36.06372780130618],[-520.6019724560678,38.11734690454158],[-517.4528300718854,40.170722798701796],[-514.3032350217919,42.224185302331186],[-511.153695050408,44.27740329729528]],"ris_xy_km":[[2.498270466061462e-06,-7.680995470167314e-14],[2.498270466061462e-06,-7.680995470167314e-14],[2.498270466061462e-06,-7.680995470167314e-14],[2.498270466061462e-06,-7.680995470167314e-14],[2.498270466061462e-06,-7.680995470167314e-14],[2.498270466061462e-06,-7.680995470167314e-14],[2.498270466061462e-06,-7.680995470167314e-14],[2.498270466061462e-06,-7.680995470167314e-14],[2.498270466061462e-06,-7.680995470167314e-14],[2.498270466061462e-06,-7.680995470167314e-14],[2.498270466061462e-06,-7.680995470167314e-14],[2.498270466061462e-06,-7.680995470167314e-14],[2.498270466061462e-06,-7.680995470167314e-14],[2.498270466061462e-06,-7.680995470167314e-14],[2.498270466061462e-06,-7.680995470167314e-14],[2.498270466061462e-06,-7.680995470167314e-14],[2.498270466061462e-06,-7.680995470167314e-14],[2.498270466061462e-06,-7.680995470167314e-14],[2.498270466061462e-06,-7.680995470167314e-14],[2.498270466061462e-06,-7.680995470167314e-14],[2.498270466061462e-06,-7.680995470167314e-14],[2.498270466061462e-06,-7.680995470167314e-14],[2.498270466061462e-06,-7.680995470167314e-14],[2.498270466061462e-06,-7.680995470167314e-14]],"doppler_hz":[474404.96613246395,472387.1309879739,470348.31661034893,468287.99201165664,466206.1171849229,464102.65880832414,461977.07467881957,459829.5031031732,457659.3946342445,455466.8947526595,453251.446984891,451013.2044704238,448751.6039391569,446466.6218882949,444158.24292125256,441825.89403398545,439469.7498378622,437089.2312625455,434684.5224979922,432255.0386969499,429800.77578969026,427321.738965985,424817.3354972922,422287.7762333332],"elevation_deg":[34.31400193490314,34.476500480655595,34.63965422534029,34.803484959002596,34.96797479183184,35.13310528945955,35.298897573212166,35.46531915741421,35.63239066092975,35.800078663204474,35.96840323247451,36.13732997374672,36.30687835669653,36.47702668720025,36.64775264192183,36.81907470269967,36.990955853178484,37.16341384166532,37.33641052842286,37.5099628790723,37.684045609255186,37.85863275747752,38.033739991620195,38.209326169445596]};
+const COLORS = {direct_only: '#888', random: '#e08214', tracked: '#1f77b4',
+                segmented_16: '#2ca02c', segmented_8: '#d62728', segmented_4: '#9467bd'};
+let frame = 0, timer = null;
+const slider = document.getElementById('slider');
+slider.max = DATA.meta.n_frames - 1;
+const legend = document.getElementById('legend');
+legend.innerHTML = DATA.variants.map(v =>
+  `<span><span class="sw" style="background:${COLORS[v]}"></span> ${v}</span>`).join('');
+
+function mean(a){ return a.reduce((x,y)=>x+y,0)/a.length; }
+
+function drawGeo() {
+  const c = document.getElementById('geo'), x = c.getContext('2d');
+  x.clearRect(0,0,c.width,c.height);
+  const s = DATA.sat_xy_km, r = DATA.ris_xy_km;
+  const all = s.concat([r[0]]);
+  const xs = all.map(p=>p[0]), ys = all.map(p=>p[1]);
+  const minX = Math.min(...xs)-20, maxX = Math.max(...xs)+20;
+  const minY = Math.min(...ys)-20, maxY = Math.max(...ys)+20;
+  const P = (p) => [ (p[0]-minX)/(maxX-minX)*(c.width-40)+20,
+                     c.height-40-(p[1]-minY)/(maxY-minY)*(c.height-40) ];
+  x.strokeStyle = '#ccc'; x.lineWidth = 1;
+  x.strokeRect(20, 20, c.width-40, c.height-40);
+  // UE at origin
+  const [ux, uy] = P([0,0]);
+  x.fillStyle = '#000'; x.beginPath(); x.arc(ux, uy, 4, 0, 7); x.fill();
+  x.fillText('UE', ux+6, uy+4);
+  // RIS panel
+  const [rx, ry] = P(r[frame]);
+  x.fillStyle = '#9467bd'; x.fillRect(rx-6, ry-3, 12, 6);
+  x.fillText('RIS', rx+8, ry+4);
+  // satellite trajectory + current position
+  x.strokeStyle = '#bbb'; x.beginPath();
+  s.forEach((p,i)=>{ const [px,py]=P(p); i?x.lineTo(px,py):x.moveTo(px,py); }); x.stroke();
+  const [sx, sy] = P(s[frame]);
+  x.fillStyle = '#d62728'; x.beginPath(); x.arc(sx, sy, 6, 0, 7); x.fill();
+  x.fillText('sat', sx+8, sy+4);
+  x.fillStyle = '#333'; x.font = '12px system-ui';
+  x.fillText('east (km)', c.width-90, c.height-10);
+}
+
+function drawSnr() {
+  const c = document.getElementById('snr'), x = c.getContext('2d');
+  x.clearRect(0,0,c.width,c.height);
+  const vals = DATA.variants.flatMap(v => DATA.snr_db[v]);
+  const lo = Math.min(...vals)-3, hi = Math.max(...vals)+3;
+  const X = i => 40 + i/(DATA.meta.n_frames-1)*(c.width-60);
+  const Y = v => c.height-30 - (v-lo)/(hi-lo)*(c.height-60);
+  x.strokeStyle = '#999'; x.beginPath(); x.moveTo(40, Y(0)); x.lineTo(c.width-20, Y(0)); x.stroke();
+  DATA.variants.forEach(v => {
+    x.strokeStyle = COLORS[v]; x.lineWidth = v==='tracked' ? 2.4 : 1.4;
+    x.beginPath();
+    DATA.snr_db[v].forEach((s,i)=> i?x.lineTo(X(i),Y(s)):x.moveTo(X(i),Y(s)));
+    x.stroke();
+  });
+  x.fillStyle = '#333';
+  x.fillText('SNR (dB)', 6, 16);
+  x.fillText('frame', c.width-60, c.height-10);
+  // current-frame marker
+  DATA.variants.forEach(v => {
+    x.fillStyle = COLORS[v];
+    x.beginPath(); x.arc(X(frame), Y(DATA.snr_db[v][frame]), 3.5, 0, 7); x.fill();
+  });
+}
+
+function update() {
+  document.getElementById('frameLabel').textContent =
+    `frame ${frame+1}/${DATA.meta.n_frames} (t = ${(frame*DATA.meta.dt_s).toFixed(1)} s)`;
+  slider.value = frame;
+  drawGeo(); drawSnr();
+  document.getElementById('metrics').textContent =
+    `Doppler ${DATA.doppler_hz[frame].toFixed(0)} Hz · elevation ${DATA.elevation_deg[frame].toFixed(1)}° · ` +
+    DATA.variants.map(v => `${v} ${DATA.snr_db[v][frame].toFixed(1)} dB`).join(' · ') +
+    ` · mean gain tracked vs random ${(mean(DATA.snr_db.tracked)-mean(DATA.snr_db.random)).toFixed(1)} dB`;
+}
+slider.addEventListener('input', e => { frame = +e.target.value; update(); });
+document.getElementById('play').addEventListener('click', function() {
+  if (timer) { clearInterval(timer); timer = null; this.textContent = '\u25B6 play'; return; }
+  this.textContent = '\u23F8 pause';
+  timer = setInterval(() => { frame = (frame+1) % DATA.meta.n_frames; update(); }, 400);
+});
+update();
+</script>
+</body>
+</html>
