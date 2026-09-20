@@ -5,7 +5,7 @@ type: software
 authors:
   - name: "kimi-isac contributors"
 license: MIT
-repository-code: "https://github.com/your-org/kimi-isac"
+repository-code: "https://github.com/ConradLu2740/kimi-isac"
 keywords:
   - isac
   - ris

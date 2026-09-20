@@ -1,6 +1,6 @@
 # kimi-isac
 
-[![CI](https://github.com/your-org/kimi-isac/actions/workflows/ci.yml/badge.svg)](https://github.com/your-org/kimi-isac/actions/workflows/ci.yml)
+[![CI](https://github.com/ConradLu2740/kimi-isac/actions/workflows/ci.yml/badge.svg)](https://github.com/ConradLu2740/kimi-isac/actions/workflows/ci.yml)
 [![Python](https://img.shields.io/badge/python-3.10+-blue.svg)](https://www.python.org/)
 [![License: MIT](https://img.shields.io/badge/License-MIT-green.svg)](LICENSE)
 
@@ -252,7 +252,7 @@ bootstrap CIs.
   title  = {kimi-isac: Physics-Grounded, Statistically Honest ISAC Simulation},
   author = {kimi-isac contributors},
   year   = {2026},
-  note   = {https://github.com/your-org/kimi-isac}
+  note   = {https://github.com/ConradLu2740/kimi-isac}
 }
 ```
 
