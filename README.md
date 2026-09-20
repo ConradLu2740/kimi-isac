@@ -19,10 +19,12 @@ physics, statistics without confidence intervals).
 ```bash
 pip install -e ".[dev,ml]"     # core deps; torch only needed for the ML layer
 python -m kimi_isac.verify     # external-truth physics verification (~10 s)
-python -m pytest -q            # unit + physics tests (23 tests)
+python -m pytest -q            # unit + physics tests (52 tests)
 python -m kimi_isac.ml.report --smoke      # ML pipeline smoke (~15 s)
 python -m kimi_isac.closedloop --smoke     # closed-loop smoke, synthetic geometry
 python -m kimi_isac.closedloop             # real ISS overpass (SGP4), Beijing UE
+python -m kimi_isac.gen.train --smoke      # generative pipeline smoke, CPU (~15 s)
+python -m kimi_isac.gen.report --seeds 10 --device cuda   # full CD report, GPU (~15 min)
 ```
 
 `make help` lists the same commands for make users.
@@ -158,8 +160,35 @@ cross-range information about the cloud (single-station bistatic
 geometry), so the reconstruction's cross-range content comes from the
 learned class prior. This is stated as a finding, not hidden.
 
-GEN_TABLE_PLACEHOLDER
+**Measured results** (`python -m kimi_isac.gen.report --seeds 10`, 10 seeds,
+bootstrap 95% CI, stratified evaluation grid — every (SNR, RIS mode, class)
+cell holds 16 samples):
 
+| Metric (CD, lower is better) | mean ± CI95 |
+|---|---|
+| VAE reconstruction (held-out instances) | 0.0056 ± 0.0001 |
+| Unconditional class-conditional generation (held-out instances) | 0.4264 ± 0.0078 |
+| Unconditional, held-out classes (bridge/windmill) | 0.1232 ± 0.0043 |
+| Memorization gap (held-out − train CD) | 0.1240 ± 0.0087 |
+| Conditional, oracle per-scatterer RIS alignment | 0.4547 ± 0.0067 |
+| Conditional, SNR 6: aligned / none / random | 0.5214 ± 0.0084 / 0.4741 ± 0.0144 / 0.4351 ± 0.0060 |
+| Conditional, SNR 1: aligned / none / random | 0.4263 ± 0.0112 / 0.5371 ± 0.0045 / 0.4825 ± 0.0077 |
+| Conditional, SNR 0.25: aligned / none / random | 0.5222 ± 0.0087 / 0.4379 ± 0.0062 / 0.5425 ± 0.0095 |
+
+> **Honest finding #3 (negative):** conditional reconstruction does **not**
+> beat the class prior. Every (SNR, RIS-mode) cell sits within the CI band
+> of the unconditional baseline (0.426) and of the oracle upper bound
+> (0.455) — even per-scatterer-perfect RIS alignment buys nothing. The
+> reason is physical, not statistical: a single-station range-Doppler echo
+> carries no cross-range information, and the templates' dominant variance
+> is yaw orientation (intra-class CD 1.1–2.7 for the loose classes). The
+> generative prior cannot recover what the channel does not carry — the
+> diffusion analogue of the classical angle wall. What the echo *does*
+> constrain (centroid range/Doppler, radial extent) is a small fraction of
+> the total instance variance, and the model does not measurably exploit
+> it at v2.1 capacity. v2.2 candidates: two-receiver (bistatic) echoes to
+> break the cross-range ambiguity, rotation-invariant targets, or
+> stronger conditioning heads.
 > **Honest finding #3:** the oracle row (per-scatterer ideal RIS
 > alignment — unreachable by any centroid-pointing controller) is the
 > upper bound; the gap between aligned and oracle quantifies what
