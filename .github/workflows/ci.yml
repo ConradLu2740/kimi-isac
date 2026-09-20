@@ -1,0 +1,32 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+
+jobs:
+  checks:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+      - name: Install
+        run: pip install -e ".[dev,ml]"
+      - name: Lint
+        run: ruff check . && ruff format --check .
+      - name: Typecheck
+        run: mypy src
+      - name: Unit tests
+        run: pytest -q
+      - name: ML pipeline smoke (1-epoch, tiny split)
+        run: python -m kimi_isac.ml.train --smoke
+      - name: Generative pipeline smoke (VAE + DiT, 1 epoch)
+        run: python -m kimi_isac.gen.train --smoke
+      - name: Generative report smoke (2 seeds)
+        run: python -m kimi_isac.gen.report --smoke
+      - name: Physics verification (external ground truth)
+        run: python -m kimi_isac.verify
